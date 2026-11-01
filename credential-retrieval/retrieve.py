@@ -275,7 +275,10 @@ def observe_uid_layer(
     )
     command = " ".join(map(shlex.quote, arguments))
     observer = subprocess.Popen(
-        device.command + [command], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        device.command + [command],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=device.env,
     )
     trigger_process = None
     direct_process = None
@@ -293,6 +296,7 @@ def observe_uid_layer(
         trigger_command = " ".join(map(shlex.quote, (trigger_program, executable)))
         trigger_process = subprocess.Popen(
             device.command + [trigger_command],
+            env=device.env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -312,6 +316,7 @@ def observe_uid_layer(
             else:
                 direct_process = subprocess.Popen(
                     device.command + [shlex.quote(executable)],
+                    env=device.env,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -358,6 +363,12 @@ def main() -> None:
     parser.add_argument(
         "--ssh-port", type=int, default=2222, help="local USB SSH port (default: 2222)"
     )
+    parser.add_argument(
+        "--ssh-user", default="root", help="SSH username (default: root)"
+    )
+    parser.add_argument(
+        "--ssh-password", help="SSH password (default: use key authentication)"
+    )
     args = parser.parse_args()
     if args.sinf_member and not args.ipa:
         parser.error("--sinf-member requires --ipa")
@@ -369,7 +380,7 @@ def main() -> None:
         else None
     )
     udid = normalize_udid(args.device_udid) if args.device_udid else connected_udid()
-    device = SSHDevice(args.ssh_port, udid)
+    device = SSHDevice(args.ssh_port, udid, args.ssh_user, args.ssh_password)
     try:
         for name in DEVICE_FILES:
             device.write(name, args.bundle / name, executable=name.endswith(".ios"))
