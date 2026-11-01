@@ -31,8 +31,24 @@ python decrypt.py /path/to/encrypted.ipa /path/to/decrypted.ipa \
   --credential /path/to/credential.bin
 ```
 
-If `--credential` is omitted, the tool reads `./credential.bin`. The output
+If `--credential` is omitted, the tool reads `credential.bin` beside
+`decrypt.py`. The output
 path must not exist.
 
 The decryptor uses each IPA's SINF and SUPF records to derive page keys,
 decrypt its encrypted arm64 pages, and clear `cryptid`.
+
+If the credential does not decode the SINF record, its length is valid but
+it cannot unlock that license. Retrieve a credential selected for the IPA
+using a supported jailbroken device with an installed app from the matching
+account:
+
+```sh
+python credential-retrieval/retrieve.py --ipa /path/to/encrypted.ipa \
+  --output-dir /path/to/new-credentials
+python decrypt.py /path/to/encrypted.ipa /path/to/decrypted.ipa \
+  --credential /path/to/new-credentials/credential.bin
+```
+
+The retrieval output directory must not already exist. If a matching
+credential still fails, the SINF record may be damaged or unsupported.

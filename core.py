@@ -23,6 +23,10 @@ FINAL_SELECTORS = ((0, 1, 2, 3), (0, 2, 4, 6), (0, 3, 5, 7), (4, 5, 6, 7))
 FINAL_CONSTANTS = (0x5B7198C7, 0xEB5DE22C, 0x0F8AA8FA, 0xF6E1BB3F)
 
 
+class CredentialMismatchError(ValueError):
+    """The credential did not decode the expected SINF private record."""
+
+
 @dataclass(frozen=True)
 class MachoInfo:
     base: int
@@ -161,7 +165,9 @@ def derive_work16(credential: bytes, sinf: bytes) -> bytes:
     op = Cipher(algorithms.AES(_xor(credential, b"0" * 16)), modes.CBC(iv)).decryptor()
     clear = op.update(raw_priv) + op.finalize()
     if clear[:4] != b"itun" or clear[20:24] != b"key " or clear[44:48] != b"iviv":
-        raise ValueError("credential does not decode this SINF priv record")
+        raise CredentialMismatchError(
+            "credential does not decode this SINF priv record"
+        )
     return clear[24:40]
 
 
