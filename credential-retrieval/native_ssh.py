@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import os
 import re
 import secrets
 import shlex
@@ -13,10 +14,33 @@ from pathlib import Path
 
 
 class SSHDevice:
-    def __init__(self, port: int, udid: str):
+    def __init__(
+        self, port: int, udid: str, username: str = "root", password: str | None = None
+    ):
         if not 1 <= port <= 65535:
             raise ValueError("SSH port is out of range")
         self.tunnel = None
+        self.env = os.environ.copy()
+        authentication = ["-o", "BatchMode=yes"]
+        if password is not None:
+            self.env.update(
+                {
+                    "SSH_ASKPASS": str(
+                        Path(__file__).with_name("ssh_askpass.sh").resolve()
+                    ),
+                    "SSH_ASKPASS_REQUIRE": "force",
+                    "DISPLAY": os.environ.get("DISPLAY") or ":0",
+                    "FP_SSH_PASSWORD": password,
+                }
+            )
+            authentication = [
+                "-o",
+                "BatchMode=no",
+                "-o",
+                "PreferredAuthentications=password,keyboard-interactive",
+                "-o",
+                "NumberOfPasswordPrompts=1",
+            ]
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=1):
                 pass
@@ -39,11 +63,9 @@ class SSHDevice:
                 raise RuntimeError("USB SSH tunnel did not open")
         self.command = [
             "ssh",
-            "-q",
             "-o",
-            "BatchMode=yes",
-            "-o",
-            "WarnWeakCrypto=no-pq-kex",
+            "LogLevel=ERROR",
+            *authentication,
             "-o",
             "StrictHostKeyChecking=accept-new",
             "-o",
@@ -52,7 +74,9 @@ class SSHDevice:
             "ConnectTimeout=8",
             "-p",
             str(port),
-            "root@127.0.0.1",
+            "-l",
+            username,
+            "127.0.0.1",
         ]
         temporary = (
             self.run("if command -v jbroot >/dev/null 2>&1; then jbroot /var/tmp; fi")
@@ -77,9 +101,14 @@ class SSHDevice:
             capture_output=True,
             timeout=120,
             check=False,
+            env=self.env,
         )
         if result.returncode:
-            message = (result.stdout + result.stderr).decode("utf-8", "replace")
+            message = (result.stdout + result.stderr).decode("utf-8", "replace").strip()
+            if not message:
+                message = "SSH returned no diagnostic output"
+            if result.returncode == 255:
+                message += "; check the USB SSH tunnel and SSH authentication (configure with --ssh-user and --ssh-password)"
             raise RuntimeError(
                 f"device command failed ({result.returncode}): {message}"
             )

@@ -23,6 +23,13 @@ required. If an IPA has distinct license selectors, specify one with
 The output directory must not exist; it receives `credential.bin` for use
 with `decrypt.py --credential`.
 
+SSH defaults to `root` with key authentication. Use `--ssh-user` to select
+another username and `--ssh-password` to enable password authentication:
+
+```sh
+python3 credential-retrieval/retrieve.py --output-dir /path/to/new-output-directory --ssh-user USERNAME --ssh-password 'PASSWORD'
+```
+
 ## Apple Arcade
 
 Apple Arcade apps need a different credential from regular App Store apps.
