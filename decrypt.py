@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 from zipfile import ZipFile
 
-from core import arm64_encryption_infos, decrypt_binary
+from core import CredentialMismatchError, arm64_encryption_infos, decrypt_binary
 
 ROOT = Path(__file__).resolve().parent
 COPY_BUFSIZE = 64 * 1024
@@ -62,7 +62,7 @@ def main() -> None:
         "--credential",
         type=Path,
         default=ROOT / "credential.bin",
-        help="saved 16-byte credential",
+        help="saved 16-byte credential (default: credential.bin beside this script)",
     )
     args = parser.parse_args()
     if not args.ipa.is_file() or not args.credential.is_file():
@@ -110,6 +110,7 @@ def main() -> None:
             plan.append(
                 (
                     binary_path,
+                    sinf_path,
                     source,
                     archive.read(sinf_path),
                     archive.read(supf_path),
@@ -119,8 +120,19 @@ def main() -> None:
             raise ValueError("no encrypted arm64 binaries with supported SINF/SUPF")
         replacements = {}
         total_pages = 0
-        for ordinal, (binary_path, source, sinf, supf) in enumerate(plan, 1):
-            result, pages = decrypt_binary(source, sinf, supf, credential)
+        for ordinal, (binary_path, sinf_path, source, sinf, supf) in enumerate(plan, 1):
+            try:
+                result, pages = decrypt_binary(source, sinf, supf, credential)
+            except CredentialMismatchError:
+                parser.error(
+                    f"credential {args.credential} does not decode {sinf_path} "
+                    f"for {binary_path}. Retrieve a credential using "
+                    "credential-retrieval/retrieve.py --ipa <input.ipa> "
+                    "--output-dir <new-directory>, then pass that directory's "
+                    "credential.bin with --credential. An installed app from the "
+                    "matching account is required. A damaged or unsupported SINF "
+                    "record can also cause this failure. No output was written."
+                )
             replacements[binary_path] = result
             total_pages += pages
             print(f"{ordinal:02d}/{len(plan)} pages={pages} {binary_path}", flush=True)
